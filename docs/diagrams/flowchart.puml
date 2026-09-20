@@ -1,0 +1,43 @@
+@startuml flowchart
+title Поток заявки, вариант 22
+skinparam swimlaneTitleFontSize 12
+
+|Источник ИБ|
+start
+:календарь: REQUEST_GENERATED;
+:InfiniteSource.onDue();
+:заявка Request id=И.N;
+
+|ДП|
+:PlacementDispatcher.onRequestGenerated;
+if (БП не полна?) then (да)
+  :putInArrivalOrder  Д1ОЗ2;
+else (нет)
+  :evictLastArrived  Д1ОО4;
+  :отказ выбитой заявки;
+  :поставить новую в хвост;
+endif
+
+|Календарь|
+:requestDispatch();
+if (есть заявка и свободный прибор группы?) then (да)
+  :schedule BUFFER_DISPATCH\nчерез bufferDwell;
+else (нет)
+  :ждать следующее событие;
+endif
+
+|ДВ|
+:BUFFER_DISPATCH;
+:selectHighestPriority  Д2Б4;
+:take(req);
+:assign на следующий свободный\nприбор группы  Д2П2;
+:schedule SERVICE_FINISHED;
+
+|Прибор ПЗ1|
+:Exp(mu) обслуживание;
+:complete();
+:ClimateState.applyServed;
+:stats.onCompleted;
+:requestDispatch();
+stop
+@enduml

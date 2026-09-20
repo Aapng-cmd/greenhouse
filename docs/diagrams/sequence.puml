@@ -1,0 +1,69 @@
+@startuml sequence
+title Вариант 22: календарь, постановка, выбивание, выдача из БП
+hide footbox
+skinparam sequenceMessageAlign center
+
+actor "EventCalendar" as Cal
+participant "InfiniteSource\nИ1 T" as S1
+participant "InfiniteSource\nИ2 RH" as S2
+participant "PlacementDispatcher\nДП" as DP
+participant "Buffer\nёмкость 4" as Buf
+participant "SelectionDispatcher\nДВ" as DV
+participant "Device P1\nгруппа И1" as P1
+participant "Device P2\nгруппа И1" as P2
+participant "StatisticsCollector" as St
+
+== HappyFlow: И1, свободный прибор группы ==
+Cal -> S1 : REQUEST_GENERATED
+activate S1
+S1 -> S1 : onDue() : Request 1.1
+S1 -> Cal : schedule(now+U[a,b], REQUEST_GENERATED)
+S1 -> DP : onRequestGenerated(1.1)
+deactivate S1
+activate DP
+note right of DP : ДП классический:\nтолько буфер, приборов не знает
+DP -> Buf : putInArrivalOrder(1.1)  Д1ОЗ2
+Buf --> DP : queued=1.1
+DP -> St : onQueued(1.1)
+DP -> Cal : requestDispatch() -> BUFFER_DISPATCH
+deactivate DP
+Cal -> DV : BUFFER_DISPATCH
+activate DV
+DV -> Buf : selectHighestPriority()  Д2Б4
+Buf --> DV : 1.1
+DV -> Buf : take(1.1)
+DV -> P1 : assign(1.1)  Д2П2 кольцо группы И1
+activate P1
+DV -> Cal : schedule(t_end, SERVICE_FINISHED, P1)
+deactivate DV
+Cal -> P1 : SERVICE_FINISHED
+P1 -> P1 : complete()
+P1 -> St : onCompleted(1.1)
+P1 -> Cal : requestDispatch()
+deactivate P1
+
+== Переполнение: БП полна, приборы группы заняты ==
+note over Buf, P2
+  БП = [2.1, 2.2, 1.2, 1.3], P1 и P2 заняты.
+  Приходит 2.3.
+end note
+Cal -> S2 : REQUEST_GENERATED
+S2 -> DP : onRequestGenerated(2.3)
+DP -> Buf : putInArrivalOrder(2.3)
+Buf -> Buf : evictLastArrived()  Д1ОО4
+note right of Buf : выбита 1.3 (последняя поступившая)
+Buf --> DP : queued=2.3, evicted=1.3
+DP -> St : onRejected(1.3)
+DP -> Cal : requestDispatch()
+note over DV : приборов группы нет -\nBUFFER_DISPATCH не ставится
+
+== Позже: прибор свободен, выдача одной заявки ==
+Cal -> P1 : SERVICE_FINISHED
+P1 -> Cal : requestDispatch() -> BUFFER_DISPATCH
+Cal -> DV : BUFFER_DISPATCH
+DV -> Buf : selectHighestPriority()  Д2Б4
+note right of DV : min sourceId, затем самая старая;\nодна заявка на свободный прибор группы
+Buf --> DV : 1.2
+DV -> P1 : assign(1.2)  Д2П2
+DV -> Cal : schedule(SERVICE_FINISHED)
+@enduml

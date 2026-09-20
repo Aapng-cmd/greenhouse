@@ -1,0 +1,69 @@
+@startuml microservices
+title Микросервисы вычислительного контура теплицы (вариант 22)
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+package "Источники ИБ / ИЗ2" {
+  [sensor-temp\nИ1] as S1
+  [sensor-humidity\nИ2] as S2
+  [sensor-light\nИ3] as S3
+  [sensor-pests\nИ4] as S4
+}
+
+[event-calendar\nособое событие] as Cal
+[dispatcher-put\nДП] as DP
+[buffer\nД1ОЗ2 Д1ОО4] as Buf
+[dispatcher-select\nДВ Д2Б4 Д2П2] as DV
+
+package "Приборы ПЗ1 (группы по 2)" {
+  [P1 P2\nтемпература] as G1
+  [P3 P4\nвлажность] as G2
+  [P5 P6\nсвет] as G3
+  [P7 P8\nвредители] as G4
+}
+
+[stats ОР1] as St
+[greenhouse-sim Qt] as Qt
+[smo.py] as Cli
+
+interface "шина событий\n(именованные события)" as Bus
+
+Cal --> S1 : REQUEST_GENERATED
+Cal --> S2
+Cal --> S3
+Cal --> S4
+S1 --> DP : Request
+S2 --> DP
+S3 --> DP
+S4 --> DP
+DP --> Buf : putInArrivalOrder(req)
+Cal --> DV : BUFFER_DISPATCH
+Buf --> DV : selectHighestPriority / take
+DV --> G1 : assign (кольцо Д2П2)
+DV --> G2
+DV --> G3
+DV --> G4
+G1 --> Cal : SERVICE_FINISHED
+G2 --> Cal
+G3 --> Cal
+G4 --> Cal
+G1 --> St : completed
+G2 --> St
+G3 --> St
+G4 --> St
+DP --> St : rejected / queued
+Cli --> Qt : JSON-кадры step
+Cal --> Cli
+St --> Qt : p_otk, Kisp
+
+note right of DP
+  Классика: нет связи ДП -> worker.
+  ДП не знает о приборах.
+end note
+
+note bottom of Bus
+  Каждый блок - отдельный сервис
+  со своим API. Календарь задаёт
+  модельное время (не wall-clock).
+end note
+@enduml

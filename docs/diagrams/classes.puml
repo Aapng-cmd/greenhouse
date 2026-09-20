@@ -1,0 +1,123 @@
+@startuml classes
+title Классы модели СМО, вариант 22
+hide empty members
+skinparam classAttributeIconSize 0
+
+enum EventKind {
+  REQUEST_GENERATED
+  SERVICE_FINISHED
+  BUFFER_DISPATCH
+}
+
+class EventCalendar {
+  +schedule(time, kind, ...)
+  +next() : Event
+  +now() : float
+}
+
+class Event {
+  +time : float
+  +kind : EventKind
+  +source
+  +request
+  +device
+}
+
+class Request {
+  +id() : str
+  +sourceId() : int
+  +tGen : float
+}
+
+class Buffer {
+  +capacity : int
+  +putInArrivalOrder(req) : PutResult
+  +take(req)
+  +evictLastArrived() : Request
+  +selectHighestPriority(allowedSources) : Request
+}
+
+class PlacementDispatcher {
+  +onRequestGenerated(req) : PutResult
+}
+
+class SelectionDispatcher {
+  +tryAssignOne() : bool
+  +tryAssignAll()
+  +canAssign() : bool
+  +lastSelected() : Request
+  +ringPointer() : int
+}
+
+class Device {
+  +id() : int
+  +groupSource() : int
+  +isFree() : bool
+  +assign(req, now) : float
+  +complete(now) : Request
+}
+
+class InfiniteSource {
+  +onDue(now) : (Request, dt)
+}
+
+class Simulation {
+  +requestDispatch()
+  +onBufferDispatch()
+  +setupArrivals()
+}
+
+class StepSnapshot {
+  +time
+  +event
+  +request
+  +buffer
+  +devices
+  +pointer
+  +selected
+}
+
+class SimConfig {
+  +nSources = 4
+  +nDevices = 0
+  +bufferDwell
+}
+
+class ClimateState {
+  +applyServed(sourceId)
+  +applyWeather(...)
+}
+
+EventCalendar "1" o-- "*" Event
+Event --> EventKind
+Simulation *-- EventCalendar
+Simulation *-- Buffer
+Simulation *-- PlacementDispatcher
+Simulation *-- SelectionDispatcher
+Simulation *-- "*" Device
+Simulation *-- "*" InfiniteSource
+Simulation *-- ClimateState
+Simulation *-- SimConfig
+Simulation --> StepSnapshot
+PlacementDispatcher --> Buffer : только буфер
+SelectionDispatcher --> Buffer
+SelectionDispatcher --> "*" Device : группы по sourceId
+InfiniteSource --> Request : создаёт
+Device --> Request : обслуживает
+
+note right of PlacementDispatcher
+  ДП классический:
+  приборов не знает.
+end note
+
+note right of SelectionDispatcher
+  Д2Б4: одна заявка, min sourceId,
+  затем самая старая.
+  Д2П2: кольцо внутри группы показателя.
+end note
+
+note bottom of Simulation
+  Выдача из БП - событие BUFFER_DISPATCH
+  с задержкой bufferDwell.
+end note
+@enduml

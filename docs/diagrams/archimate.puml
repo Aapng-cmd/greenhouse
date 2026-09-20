@@ -1,0 +1,29 @@
+@startuml archimate
+title ArchiMate: бизнес-слой вычислительного контура теплицы
+skinparam rectangle {
+  roundCorner 8
+}
+
+rectangle "Тепличное хозяйство" {
+  rectangle "Съём показателя\nИ1 T  И2 RH  И3 свет  И4 вредители" as Sense
+  rectangle "Постановка в очередь расчёта\nДП + БП  Д1ОЗ2" as Queue
+  rectangle "Выбивание последней поступившей\nД1ОО4" as Evict
+  rectangle "Выбор одной заявки\nД2Б4 + кольцо Д2П2 в группе" as Select
+  rectangle "Расчёт на воркере\nПЗ1" as Compute
+  rectangle "Команда актуатору\nнагрев / полив / UV / химикаты" as Act
+  rectangle "Учёт KPI\nОР1 таблицы" as Kpi
+}
+
+Sense --> Queue
+Queue --> Evict : БП полна
+Queue --> Select : BUFFER_DISPATCH
+Select --> Compute
+Compute --> Act
+Compute --> Kpi
+Compute --> Select : прибор свободен
+
+note bottom of Select
+  Одна заявка на свободный прибор группы.
+  Приоритет: И1 > И2 > И3 > И4.
+end note
+@enduml

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.png
+!docs/diagrams/*.png
+docs/diagrams/out/
+greenhouse-sim/Makefile
+greenhouse-sim/*.o
+greenhouse-sim/moc_*
+greenhouse-sim/greenhouse-sim
+*.user
+auto.log
