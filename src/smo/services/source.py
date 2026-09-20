@@ -11,8 +11,10 @@ class InfiniteSource:
         source_id: int,
         arrival_rng: UniformGenerator,
         bus: IMessageBus,
+        category_id: int = 0,
     ) -> None:
         self._source_id = source_id
+        self._category_id = category_id if category_id > 0 else source_id
         self._next_seq = 1
         self._arrival_rng = arrival_rng
         self._bus = bus
@@ -20,8 +22,11 @@ class InfiniteSource:
     def source_id(self) -> int:
         return self._source_id
 
+    def category_id(self) -> int:
+        return self._category_id
+
     def on_due(self, now: float) -> tuple[Request, float]:
-        req = Request(self._source_id, self._next_seq, now)
+        req = Request(self._source_id, self._next_seq, now, _category_id=self._category_id)
         self._next_seq += 1
         dt = self._arrival_rng.next_interarrival()
         self._bus.publish(

@@ -12,9 +12,15 @@ class Device:
         service_rng: ExponentialGenerator,
         bus: IMessageBus,
         group_source: int = 0,
+        name: str = "",
+        action: str = "",
+        delta: float = 0.0,
     ) -> None:
         self._id = device_id
         self._group_source = group_source
+        self._name = name or f"P{device_id}"
+        self._action = action
+        self._delta = delta
         self._busy = False
         self._current: Request | None = None
         self._service_rng = service_rng
@@ -27,6 +33,18 @@ class Device:
 
     def group_source(self) -> int:
         return self._group_source
+
+    def group_category(self) -> int:
+        return self._group_source
+
+    def name(self) -> str:
+        return self._name
+
+    def action(self) -> str:
+        return self._action
+
+    def delta(self) -> float:
+        return self._delta
 
     def index(self) -> int:
         return self._id - 1
@@ -45,7 +63,7 @@ class Device:
         self._current = req
         self.busy_from = now
         t_end = now + dt
-        req.set_service_interval(now, t_end)
+        req.begin_on_device(now)
         self._bus.publish(
             "device.assign",
             {"device_id": self._id, "request": req, "t_end": t_end},

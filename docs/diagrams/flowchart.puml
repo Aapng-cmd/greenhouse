@@ -30,13 +30,14 @@ endif
 :BUFFER_DISPATCH;
 :selectHighestPriority  Д2Б4;
 :take(req);
-:assign на следующий свободный\nприбор группы  Д2П2;
+:разбить gap на сумму дельт |d| по убыванию;
+:assign на свободные приборы группы  Д2П2;
 :schedule SERVICE_FINISHED;
 
 |Прибор ПЗ1|
 :Exp(mu) обслуживание;
 :complete();
-:ClimateState.applyServed;
+:ClimateState.applyActuator(delta прибора);
 :stats.onCompleted;
 :requestDispatch();
 stop

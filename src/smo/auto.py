@@ -41,9 +41,11 @@ def run_until_empty(sim: Simulation, on_step=None, progress: ProgressFn | None =
         elif event.kind == EventKind.SERVICE_FINISHED:
             device = event.device
             req = device.complete(event.time)
-            sim.stats.on_completed(req, device)
-            sim.climate.apply_served(req.source_id())
-            sim._last_leave = event.time
+            sim.stats.on_device_finished(device)
+            sim.climate.apply_actuator(device.group_category(), device.delta(), device.action())
+            if req.finish_on_device(event.time):
+                sim.stats.on_completed(req)
+                sim._last_leave = event.time
             sim.request_dispatch()
         elif event.kind == EventKind.BUFFER_DISPATCH:
             sim.on_buffer_dispatch()

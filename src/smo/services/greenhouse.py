@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from smo.actuators import actuator_for
+
 
 def _clip(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
@@ -69,18 +71,18 @@ class ClimateState:
         )
 
     def _update_clouds(self, now: float) -> None:
-        n = 3 + int(2.4 * (0.5 + 0.5 * math.sin(now / 38.0)))
-        n = max(3, min(6, n))
+        n = 2 + int(1.2 * (0.5 + 0.5 * math.sin(now / 48.0)))
+        n = max(2, min(4, n))
         clouds = []
         cover = 0.0
         for i in range(n):
-            speed = 0.016 + 0.006 * i
-            x = (i * (1.15 / max(n, 1)) + now * speed) % 1.40 - 0.18
-            y = 0.08 + 0.07 * math.sin(now * 0.06 + i * 1.4)
-            size = 0.38 + 0.40 * (0.5 + 0.5 * math.sin(now * 0.035 + i * 2.2))
+            speed = 0.012 + 0.004 * i
+            x = (i * (1.20 / max(n, 1)) + now * speed) % 1.35 - 0.16
+            y = 0.08 + 0.05 * (i % 3)
+            size = 0.45 + 0.10 * i
             clouds.append({"x": round(x, 3), "y": round(y, 3), "size": round(size, 3)})
             visible = 1.0 if -0.08 <= x <= 1.08 else 0.15
-            cover += visible * size * (0.16 + 0.02 * i)
+            cover += visible * size * (0.20 + 0.04 * i)
         self.clouds = clouds
         self.cloud_cover = _clip(cover, 0.0, 0.82)
 
@@ -138,32 +140,41 @@ class ClimateState:
             self.pests = _clip(pests, 0.0, 100.0)
         self.last_action = ""
 
-    def apply_served(self, source_id: int) -> None:
-        """Заявка обслужена: актуатор двигает параметр к оптимуму роста."""
-        if source_id == 1:
-            if self.temperature < self.opt_temp:
-                self.act_temp += 0.7
-                self.last_action = "heat"
-            else:
-                self.act_temp -= 0.7
-                self.last_action = "cool"
-        elif source_id == 2:
-            if self.humidity < self.opt_humidity:
-                self.act_humidity += 1.4
-                self.last_action = "spray_water"
-            else:
-                self.act_humidity -= 1.4
-                self.last_action = "vent"
-        elif source_id == 3:
-            if self.light < self.opt_light:
-                self.act_light += 1.6
-                self.last_action = "uv"
-            else:
-                self.act_light -= 1.6
-                self.last_action = "shade"
+    def gap(self, category_id: int) -> float:
+        if category_id == 1:
+            return self.opt_temp - self.temperature
+        if category_id == 2:
+            return self.opt_humidity - self.humidity
+        if category_id == 3:
+            return self.opt_light - self.light
+        if category_id == 4:
+            return self.opt_pests - self.pests
+        return 0.0
+
+    def apply_actuator(self, category_id: int, delta: float, action: str) -> None:
+        if category_id == 1:
+            self.act_temp += delta
+        elif category_id == 2:
+            self.act_humidity += delta
+        elif category_id == 3:
+            self.act_light += delta
         else:
-            self.pests = _clip(self.pests - 14.0, 0.0, 100.0)
-            self.last_action = "chem"
+            self.pests = _clip(self.pests + delta, 0.0, 100.0)
+        self.last_action = action
+
+    def apply_served(self, category_id: int) -> None:
+        """Совместимость тестов: один шаг актуатора нужного знака."""
+        needed = self.gap(category_id)
+        seq = (0, 1)
+        spec = None
+        for idx in seq:
+            cand = actuator_for(category_id, idx)
+            if needed == 0.0 or cand.delta * needed > 0:
+                spec = cand
+                break
+        if spec is None:
+            spec = actuator_for(category_id, 0)
+        self.apply_actuator(category_id, spec.delta, spec.action)
 
     def as_dict(self) -> dict:
         return {

@@ -49,9 +49,19 @@ class SelectionDispatcher {
   +ringPointer() : int
 }
 
+class ActuatorSpec {
+  +name : str
+  +action : str
+  +delta : float
+  +category : int
+}
+
 class Device {
   +id() : int
   +groupSource() : int
+  +name() : str
+  +action() : str
+  +delta() : float
   +isFree() : bool
   +assign(req, now) : float
   +complete(now) : Request
@@ -75,6 +85,9 @@ class StepSnapshot {
   +devices
   +pointer
   +selected
+  +groups
+  +actuators
+  +climate
 }
 
 class SimConfig {
@@ -84,7 +97,8 @@ class SimConfig {
 }
 
 class ClimateState {
-  +applyServed(sourceId)
+  +gap(categoryId) : float
+  +applyActuator(categoryId, delta, action)
   +applyWeather(...)
 }
 
@@ -101,7 +115,10 @@ Simulation *-- SimConfig
 Simulation --> StepSnapshot
 PlacementDispatcher --> Buffer : только буфер
 SelectionDispatcher --> Buffer
-SelectionDispatcher --> "*" Device : группы по sourceId
+SelectionDispatcher --> "*" Device : группы по категории
+SelectionDispatcher --> ActuatorSpec : сумма дельт |d| убыв.
+Simulation --> ActuatorSpec : mix_actuators
+Device --> ActuatorSpec : один тип, одна группа
 InfiniteSource --> Request : создаёт
 Device --> Request : обслуживает
 
@@ -111,9 +128,20 @@ note right of PlacementDispatcher
 end note
 
 note right of SelectionDispatcher
-  Д2Б4: одна заявка, min sourceId,
+  Д2Б4: одна заявка, min categoryId,
   затем самая старая.
-  Д2П2: кольцо внутри группы показателя.
+  Д2П2: кольцо внутри группы.
+  Занимает свободные приборы того же
+  знака, пока сумма дельт не закроет
+  gap: сначала большая |delta|,
+  которая ещё входит в остаток.
+end note
+
+note bottom of ActuatorSpec
+  У категории свои типы.
+  n=1: случайный тип.
+  n>=2: каждый тип хотя бы раз.
+  Прибор не двигает две группы сразу.
 end note
 
 note bottom of Simulation

@@ -59,7 +59,7 @@
 | `worker-*` | Обслуживание ПЗ1 |
 | `event-calendar` | Модельное время |
 | `stats` | Таблицы ОР1 |
-| `greenhouse-sim` | Qt: среда и кадры JSON, не буфер |
+| `greenhouse-sim` | Qt: среда и кадры JSON, не буфер. `greenhouse_view` рисует дом, `pipeline_view` - схему |
 
 ## 7. Цели и KPI
 

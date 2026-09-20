@@ -66,7 +66,12 @@ sensor-*  ->  dispatcher-put  ->  buffer  ->  dispatcher-select  ->  worker-*
 
 Исходники PlantUML: [docs/diagrams/](docs/diagrams/). Пересборка: `plantuml docs/diagrams/*.puml`.
 
-Бизнес-домен: [docs/business-model.md](docs/business-model.md).
+Отчётные тексты:
+
+- [Бизнес-домен](docs/business-model.md)
+- [Маппинг домена на элементы СМО](docs/mapping.md)
+- [Первичные артефакты](docs/primary-artifacts.md)
+- [Риски](docs/risks.md)
 
 ## Запуск
 
@@ -84,6 +89,8 @@ python3 ./smo.py step -n 30     # если нет права execute
 ```
 
 Qt-окно `greenhouse-sim/greenhouse-sim` (`qmake && make`) запускает `../smo.py`.
+Код окна: `main.cpp` (вход), `app_window.cpp` (раскладка и процесс), `greenhouse_view.cpp` (дом),
+`pipeline_view.cpp` (схема), `sim_launch.cpp` (флаги).
 
 ### Окно теплицы
 

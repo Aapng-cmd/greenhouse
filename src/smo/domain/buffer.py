@@ -74,15 +74,21 @@ class Buffer:
                 return
         raise KeyError(f"{req.id()} not in buffer")
 
-    def select_highest_priority(self, allowed_sources: set[int] | None = None) -> Request | None:
-        """Д2Б4: min sourceId, среди равных самая старая (Д1ОО4 выбивает новые)."""
+    def select_highest_priority(
+        self,
+        allowed_sources: set[int] | None = None,
+        allowed_categories: set[int] | None = None,
+    ) -> Request | None:
+        """Д2Б4: min категория, среди равных самая старая (Д1ОО4 выбивает новые)."""
         cand = self._slots
         if allowed_sources is not None:
             cand = [r for r in cand if r.source_id() in allowed_sources]
+        if allowed_categories is not None:
+            cand = [r for r in cand if r.category_id() in allowed_categories]
         if not cand:
             return None
-        best_source = min(r.source_id() for r in cand)
-        same = [r for r in cand if r.source_id() == best_source]
+        best_cat = min(r.category_id() for r in cand)
+        same = [r for r in cand if r.category_id() == best_cat]
         return min(same, key=lambda r: r.t_generated())
 
     def ids(self) -> list[str]:

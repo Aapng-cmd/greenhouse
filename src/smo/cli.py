@@ -7,7 +7,7 @@ from pathlib import Path
 
 from smo import VARIANT
 from smo.auto import run_auto, run_until_empty, stderr_progress
-from smo.config import SimConfig
+from smo.config import SimConfig, counts_from_cli
 from smo.engine import Simulation, StepSnapshot
 
 
@@ -31,21 +31,25 @@ STEP_HELP = """
 
 После прогона печатаются таблицы источников и приборов (как в авторежиме).
 
-Источники (меньше номер - выше приоритет):
-  И1 температура, И2 влажность, И3 свет, И4 вредители.
+Источники сгруппированы по категориям (меньше номер категории - выше приоритет):
+  температура, влажность, свет, вредители.
+По умолчанию в каждой категории 1 датчик и 2 прибора.
+Общий флаг задаёт число на каждую категорию, точечный перекрывает его:
+  --sources 3 --sources-temp 1 --devices 2 --devices-light 4
 
-После обслуживания заявки актуатор двигает климат к оптимальным
-ростовым условиям (opt-temp, opt-humidity, opt-light, opt-pests):
-  И1 нагрев/охлаждение, И2 полив/вентиляция, И3 UV-лампы/зонты, И4 химикаты.
-
-По умолчанию на каждый источник - группа из двух приборов (P1-P2 температура,
-P3-P4 влажность, P5-P6 свет, P7-P8 вредители). Кольцо Д2П2 крутится внутри группы.
+Заявка категории идёт на приборы этой же группы. Диспетчер считает отклонение
+климата до оптимума и режет его на сумму дельт свободных приборов того же знака:
+сначала большая по модулю дельта, которая ещё помещается в остаток
+(5.2 = 3 + 2 + 0.1 + 0.1). Занятый пропускает. Если подходящего знака нет -
+берёт один свободный, чтобы БП не вставала. Кольцо Д2П2 - при равенстве модулей.
 
 Выдача из БП идёт с малой задержкой (--buffer-dwell), чтобы очередь была
 видна между постановкой и назначением на прибор.
 
 Примеры:
   ./smo.py step -n 30
+  ./smo.py step --sources 2 --devices-temp 3 -n 20
+  ./smo.py step --sources-light 2 --sources-temp 1 --devices 2
   ./smo.py step --pause -n 10
   ./smo.py step --infinite --json-lines --pull   # кадры для greenhouse-sim
   ./smo.py step --help
@@ -158,9 +162,10 @@ def _apply_stdin_command(sim: Simulation, line: str) -> bool:
 
 
 def _config_from_common(args: argparse.Namespace, **extra) -> SimConfig:
+    sources_per_category, devices_per_category = counts_from_cli(args)
     return SimConfig(
-        n_sources=args.sources,
-        n_devices=args.devices,
+        sources_per_category=sources_per_category,
+        devices_per_category=devices_per_category,
         buffer_capacity=args.buffer,
         seed=args.seed,
         mu=args.mu,
@@ -287,13 +292,26 @@ def build_parser() -> argparse.ArgumentParser:
     d.set_defaults(func=lambda _: (_print_decode(), 0)[1])
 
     def add_common(sp: argparse.ArgumentParser) -> None:
-        sp.add_argument("--sources", type=int, default=4, help="число источников И1..Иn")
+        sp.add_argument(
+            "--sources",
+            type=int,
+            default=None,
+            help="датчиков на каждую категорию (темп/влажность/свет/вредители)",
+        )
+        sp.add_argument("--sources-temp", type=int, default=None, help="датчиков температуры")
+        sp.add_argument("--sources-humidity", type=int, default=None, help="датчиков влажности")
+        sp.add_argument("--sources-light", type=int, default=None, help="датчиков света")
+        sp.add_argument("--sources-pests", type=int, default=None, help="датчиков вредителей")
         sp.add_argument(
             "--devices",
             type=int,
-            default=0,
-            help="всего приборов; 0 = по 2 прибора на каждый источник",
+            default=None,
+            help="приборов на каждую категорию",
         )
+        sp.add_argument("--devices-temp", type=int, default=None, help="приборов температуры")
+        sp.add_argument("--devices-humidity", type=int, default=None, help="приборов влажности")
+        sp.add_argument("--devices-light", type=int, default=None, help="приборов света")
+        sp.add_argument("--devices-pests", type=int, default=None, help="приборов вредителей")
         sp.add_argument("--buffer", type=int, default=4, help="ёмкость общей БП")
         sp.add_argument("--seed", type=int, default=42, help="зерно ГПСЧ")
         sp.add_argument("--mu", type=float, default=0.55, help="интенсивность обслуживания Exp(mu), ПЗ1")

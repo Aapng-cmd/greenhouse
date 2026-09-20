@@ -69,7 +69,10 @@ class StatisticsCollector:
     def on_assigned(self, req: Request, device: Device) -> None:
         self._by_device[device.id()].assigned += 1
 
-    def on_completed(self, req: Request, device: Device) -> None:
+    def on_device_finished(self, device: Device) -> None:
+        self._by_device[device.id()].completed += 1
+
+    def on_completed(self, req: Request, device: Device | None = None) -> None:
         st = self._by_source[req.source_id()]
         st.served += 1
         w = req.wait_time()
@@ -78,7 +81,8 @@ class StatisticsCollector:
         st.sum_service += s
         st.sum_wait2 += w * w
         st.sum_service2 += s * s
-        self._by_device[device.id()].completed += 1
+        if device is not None:
+            self._by_device[device.id()].completed += 1
         self._total_served += 1
 
     def total_generated(self) -> int:

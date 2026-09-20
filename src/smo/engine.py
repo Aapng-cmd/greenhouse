@@ -3,7 +3,8 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from smo.config import SimConfig, device_group_map
+from smo.actuators import mix_actuators
+from smo.config import SimConfig
 from smo.domain.buffer import Buffer
 from smo.domain.events import Event, EventKind
 from smo.domain.request import Request
@@ -33,6 +34,7 @@ class StepSnapshot:
     climate: dict
     step: int = 0
     groups: list[dict] | None = None
+    actuators: list[dict] | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -49,6 +51,7 @@ class StepSnapshot:
             "climate": self.climate,
             "step": self.step,
             "groups": self.groups or [],
+            "actuators": self.actuators or [],
         }
 
 
@@ -77,31 +80,55 @@ class Simulation:
 
         self.sources = [
             InfiniteSource(
-                i,
+                sid,
                 UniformGenerator(config.uniform_a, config.uniform_b, random.Random(self.rng.randint(1, 10**9))),
                 self.bus,
+                category_id=cat,
             )
-            for i in range(1, config.n_sources + 1)
+            for sid, cat in config.source_specs()
         ]
-        group_of = device_group_map(config.n_sources, config.n_devices)
-        self.devices = [
-            Device(
-                i,
-                ExponentialGenerator(config.mu, random.Random(self.rng.randint(1, 10**9))),
-                self.bus,
-                group_source=group_of.get(i, 0),
+        self.devices = []
+        by_cat: dict[int, list] = {}
+        mix_rng = random.Random(config.seed ^ 0x51A2)
+        counts: dict[int, int] = {}
+        for _did, cat in config.device_specs():
+            counts[cat] = counts.get(cat, 0) + 1
+        for cat, n in counts.items():
+            use_cat = cat if cat else 1
+            by_cat[cat] = mix_actuators(use_cat, n, mix_rng)
+        taken: dict[int, int] = {}
+        for did, cat in config.device_specs():
+            idx = taken.get(cat, 0)
+            taken[cat] = idx + 1
+            spec = by_cat[cat][idx]
+            self.devices.append(
+                Device(
+                    did,
+                    ExponentialGenerator(config.mu, random.Random(self.rng.randint(1, 10**9))),
+                    self.bus,
+                    group_source=cat,
+                    name=spec.name,
+                    action=spec.action,
+                    delta=spec.delta,
+                )
             )
-            for i in range(1, config.n_devices + 1)
+        self.actuator_catalog = [
+            {
+                "id": d.id(),
+                "name": d.name(),
+                "delta": d.delta(),
+                "action": d.action(),
+                "category": d.group_category(),
+            }
+            for d in self.devices
         ]
         groups: dict[int, list[Device]] = {}
-        for d in self.devices:
-            sid = d.group_source()
-            if sid:
-                groups.setdefault(sid, []).append(d)
-        self.device_groups = [
-            {"source": sid, "devices": [d.id() for d in ds]}
-            for sid, ds in sorted(groups.items())
-        ]
+        if not config.shared_pool:
+            for d in self.devices:
+                cat = d.group_category()
+                if cat:
+                    groups.setdefault(cat, []).append(d)
+        self.device_groups = config.layout_groups()
         self.dp = PlacementDispatcher(self.buffer, self.bus, self.stats, self.calendar.now)
         self.dv = SelectionDispatcher(
             self.buffer,
@@ -111,6 +138,7 @@ class Simulation:
             self.calendar.now,
             on_assigned=self._on_assigned,
             groups=groups,
+            needed_fn=self.climate.gap,
         )
         self._last_leave = 0.0
         self._dispatch_pending = False
@@ -172,6 +200,7 @@ class Simulation:
             climate=self.climate.as_dict(),
             step=self._step_no,
             groups=self.device_groups,
+            actuators=self.actuator_catalog,
         )
         self.snapshots.append(snap)
         return snap
