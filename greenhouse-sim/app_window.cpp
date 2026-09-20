@@ -115,13 +115,13 @@ int runGreenhouseWindow(int argc, char *argv[])
 
     auto *splitMain = new QSplitter(Qt::Horizontal);
     splitMain->addWidget(view);
-    splitMain->addWidget(midBox);
     splitMain->addWidget(rightSplit);
+    splitMain->addWidget(midBox);
     splitMain->setStretchFactor(0, 3);
     splitMain->setStretchFactor(1, 2);
     splitMain->setStretchFactor(2, 2);
     splitMain->setChildrenCollapsible(true);
-    splitMain->setSizes({520, 360, 380});
+    splitMain->setSizes({520, 400, 340});
 
     auto *root = new QVBoxLayout(&window);
     root->setContentsMargins(0, 0, 0, 0);

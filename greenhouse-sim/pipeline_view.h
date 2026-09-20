@@ -16,6 +16,7 @@ public:
     QJsonObject frame;
     QVector<Fly> flies;
     QString hot;
+    QHash<int, QString> lastOcc;
 
     explicit PipelineView(PipeKind k, QWidget *parent = nullptr);
     void pulse(const QJsonObject &o);
@@ -34,5 +35,5 @@ private:
     QStringList deviceNodeIds() const;
     QStringList sourceNodeIds() const;
     QHash<QString, QRect> nodeRects() const;
-    void spawnFlies(const QString &req);
+    void spawnFlies(const QString &req, const QList<int> &newlyBusy);
 };

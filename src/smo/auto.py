@@ -49,6 +49,9 @@ def run_until_empty(sim: Simulation, on_step=None, progress: ProgressFn | None =
             sim.request_dispatch()
         elif event.kind == EventKind.BUFFER_DISPATCH:
             sim.on_buffer_dispatch()
+            sel = sim.dv.last_selected()
+            if sel is not None:
+                event.request = sel
         else:
             continue
         snap = sim._snapshot(event)

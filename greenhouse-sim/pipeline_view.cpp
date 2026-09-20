@@ -15,7 +15,7 @@ PipelineView::PipelineView(PipeKind k, QWidget *parent)
         if (flies.isEmpty())
             return;
         for (int i = flies.size() - 1; i >= 0; --i) {
-            flies[i].u += 0.05;
+            flies[i].u += 0.04;
             if (flies[i].u >= 1.0)
                 flies.removeAt(i);
         }
@@ -26,14 +26,27 @@ PipelineView::PipelineView(PipeKind k, QWidget *parent)
 
 void PipelineView::pulse(const QJsonObject &o)
 {
+    const auto prevOcc = lastOcc;
     frame = o;
+    lastOcc.clear();
+    QList<int> newlyBusy;
+    const auto occ = o.value("devices").toObject();
+    for (auto it = occ.begin(); it != occ.end(); ++it) {
+        const int id = it.key().toInt();
+        const QString now = it.value().toString();
+        lastOcc.insert(id, now);
+        if (!now.isEmpty() && now != QLatin1String("idle") && now != prevOcc.value(id))
+            newlyBusy.append(id);
+    }
+
     const QString ev = o.value("event").toString();
     const bool inboundEv = ev.contains(QString::fromUtf8("сгенерирована"))
                            || ev.contains(QString::fromUtf8("выбивание"));
     const bool outboundEv = ev.contains(QString::fromUtf8("обработка"))
                             || ev.contains(QString::fromUtf8("отправка"))
                             || ev.contains(QString::fromUtf8("прибор"))
-                            || ev.contains(QString::fromUtf8("выдача"));
+                            || ev.contains(QString::fromUtf8("выдача"))
+                            || !newlyBusy.isEmpty();
     if (kind == PipeKind::Inbound && !inboundEv)
         return;
     if (kind == PipeKind::Outbound && !outboundEv)
@@ -44,7 +57,7 @@ void PipelineView::pulse(const QJsonObject &o)
         hot = QStringLiteral("dv");
     else
         hot = QStringLiteral("buf");
-    spawnFlies(o.value("request").toString());
+    spawnFlies(o.value("request").toString(), newlyBusy);
     update();
 }
 
@@ -154,7 +167,7 @@ void PipelineView::paintEvent(QPaintEvent *)
         const QPointF pos = f.a + (f.b - f.a) * f.u;
         p.setPen(Qt::NoPen);
         p.setBrush(f.color);
-        p.drawEllipse(pos, 6, 6);
+        p.drawEllipse(pos, 7, 7);
     }
 }
 
@@ -266,7 +279,7 @@ QHash<QString, QRect> PipelineView::nodeRects() const
     return m;
 }
 
-void PipelineView::spawnFlies(const QString &req)
+void PipelineView::spawnFlies(const QString &req, const QList<int> &newlyBusy)
 {
     const auto n = nodeRects();
     auto add = [&](const QString &a, const QString &b, const QColor &c) {
@@ -278,37 +291,57 @@ void PipelineView::spawnFlies(const QString &req)
         f.color = c;
         flies.append(f);
     };
-    const int src = req.section(QLatin1Char('.'), 0, 0).toInt();
+    const auto occ = frame.value("devices").toObject();
+    const QString selected = frame.value("selected").toString();
+    QString want = req;
+    if (want.isEmpty() || want == QLatin1String("-"))
+        want = selected;
+    if ((want.isEmpty() || want == QLatin1String("-")) && !newlyBusy.isEmpty())
+        want = occ.value(QString::number(newlyBusy.first())).toString();
+
+    int src = want.section(QLatin1Char('.'), 0, 0).toInt();
+    if (src <= 0)
+        src = req.section(QLatin1Char('.'), 0, 0).toInt();
     QString sid = QStringLiteral("s%1").arg(src > 0 ? src : 1);
     int cat = src;
-    QList<int> deviceIds;
+    QList<int> groupIds;
     for (const auto &g : metricGroups()) {
-        if (g.sources.contains(src) || (g.sources.isEmpty() && g.source == src)) {
-            cat = g.source;
-            deviceIds = g.ids;
+        if (g.sources.contains(src) || (g.sources.isEmpty() && g.source == src) || g.source == src) {
+            cat = g.source ? g.source : src;
+            groupIds = g.ids;
             break;
         }
     }
-    const QColor col = sourceColor(cat);
+    if (cat <= 0 && !newlyBusy.isEmpty()) {
+        for (const auto &g : metricGroups()) {
+            if (g.ids.contains(newlyBusy.first())) {
+                cat = g.source;
+                groupIds = g.ids;
+                break;
+            }
+        }
+    }
+    const QColor col = sourceColor(cat > 0 ? cat : 1);
     if (kind == PipeKind::Inbound || (kind == PipeKind::Combined && hot == QLatin1String("src"))) {
         add(sid, QStringLiteral("dp"), col);
         add(QStringLiteral("dp"), QStringLiteral("buf"), col);
     }
     if (kind == PipeKind::Outbound || (kind == PipeKind::Combined && hot == QLatin1String("dv"))) {
         add(QStringLiteral("buf"), QStringLiteral("dv"), col);
-        const auto occ = frame.value("devices").toObject();
-        const QString selected = frame.value("selected").toString();
-        const QString want = (req.isEmpty() || req == QLatin1String("-")) ? selected : req;
-        QList<int> assigned;
-        if (!want.isEmpty() && want != QLatin1String("-")) {
-            for (int id : deviceIds) {
-                if (occ.value(QString::number(id)).toString() == want)
+        QList<int> assigned = newlyBusy;
+        if (assigned.isEmpty() && !want.isEmpty() && want != QLatin1String("-")) {
+            auto consider = [&](int id) {
+                if (occ.value(QString::number(id)).toString() == want && !assigned.contains(id))
                     assigned << id;
-            }
+            };
+            for (int id : groupIds)
+                consider(id);
+            for (auto it = occ.begin(); it != occ.end(); ++it)
+                consider(it.key().toInt());
         }
         for (int id : assigned)
             add(QStringLiteral("dv"), QStringLiteral("p%1").arg(id), col);
     }
-    while (flies.size() > 22)
+    while (flies.size() > 28)
         flies.removeFirst();
 }
