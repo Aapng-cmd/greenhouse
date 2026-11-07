@@ -11,3 +11,5 @@ greenhouse-sim/moc_*
 greenhouse-sim/greenhouse-sim
 *.user
 auto.log
+overview*
+!overview.pdf

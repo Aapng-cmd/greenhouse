@@ -71,7 +71,6 @@ sensor-*  ->  dispatcher-put  ->  buffer  ->  dispatcher-select  ->  worker-*
 - [Бизнес-домен](docs/business-model.md)
 - [Маппинг домена на элементы СМО](docs/mapping.md)
 - [Первичные артефакты](docs/primary-artifacts.md)
-- [Риски](docs/risks.md)
 
 ## Запуск
 
